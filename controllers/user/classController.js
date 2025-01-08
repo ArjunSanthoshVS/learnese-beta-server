@@ -6,7 +6,9 @@ const translationService = require('../../utils/translationService');
 
 // Helper function to translate class data
 const translateClassData = async (classDoc, language) => {
-    if (!classDoc || language === 'en') return classDoc;
+    if (!classDoc || language === 'en') {
+        return classDoc ? classDoc.toObject() : null;
+    }
 
     const classObj = classDoc.toObject();
     return {
@@ -22,7 +24,10 @@ const translateClassData = async (classDoc, language) => {
 
 // Helper function to translate multiple classes
 const translateClasses = async (classes, language) => {
-    if (!classes || language === 'en') return classes;
+    if (!classes) return classes;
+    if (language === 'en') {
+        return classes.map(cls => cls.toObject());
+    }
     return Promise.all(classes.map(cls => translateClassData(cls, language)));
 };
 

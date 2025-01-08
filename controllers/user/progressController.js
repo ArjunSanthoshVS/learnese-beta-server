@@ -12,10 +12,12 @@ const getProgressData = async (req, res) => {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        // Get all courses data with translations
+        // Get all courses data with translations if needed
         const courses = await Promise.all(user.courses.map(async course => ({
             id: course.course._id,
-            name: await translationService.translate(course.course.title, language),
+            name: language !== 'en' 
+                ? await translationService.translate(course.course.title, language)
+                : course.course.title,
             level: course.course.level,
             overallProgress: course.overallProgress,
         })));
@@ -30,19 +32,25 @@ const getProgressData = async (req, res) => {
             lastUpdated: user.skills?.lastUpdated
         };
 
-        // Get recent achievements with translations
+        // Get recent achievements with translations if needed
         const achievements = await Promise.all(user.recentAchievements.map(async achievement => ({
             type: achievement.category,
-            description: await translationService.translate(achievement.description, language),
+            description: language !== 'en'
+                ? await translationService.translate(achievement.description, language)
+                : achievement.description,
             icon: getIconColorForCategory(achievement.category)
         })));
 
-        // Get active study recommendations with translations
+        // Get active study recommendations with translations if needed
         const recommendations = await Promise.all(user.studyRecommendations
             .filter(rec => rec.status === 'pending')
             .map(async rec => ({
-                title: await translationService.translate(rec.title, language),
-                description: await translationService.translate(rec.description, language),
+                title: language !== 'en'
+                    ? await translationService.translate(rec.title, language)
+                    : rec.title,
+                description: language !== 'en'
+                    ? await translationService.translate(rec.description, language)
+                    : rec.description,
                 type: rec.type,
                 priority: rec.priority,
                 generatedAt: rec.generatedAt

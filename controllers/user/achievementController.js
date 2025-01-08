@@ -85,14 +85,15 @@ const getUserAchievements = async (req, res) => {
             allAchievementTemplates.map(async (achievement) => {
                 const baseAchievement = achievement.toObject();
                 
-                // Translate title and description
-                const [translatedTitle, translatedDescription] = await Promise.all([
-                    translationService.translate(baseAchievement.title, language),
-                    translationService.translate(baseAchievement.description, language)
-                ]);
-
-                baseAchievement.title = translatedTitle;
-                baseAchievement.description = translatedDescription;
+                // Only translate if language is not English
+                if (language !== 'en') {
+                    const [translatedTitle, translatedDescription] = await Promise.all([
+                        translationService.translate(baseAchievement.title, language),
+                        translationService.translate(baseAchievement.description, language)
+                    ]);
+                    baseAchievement.title = translatedTitle;
+                    baseAchievement.description = translatedDescription;
+                }
 
                 // First check in recentAchievements
                 const recentProgress = user.recentAchievements.find(a => a.achievementId === achievement.id);
@@ -146,16 +147,18 @@ const getUserAchievements = async (req, res) => {
 
                 const achievementObj = baseAchievement.toObject();
                 
-                // Translate title and description for recent achievements
-                const [translatedTitle, translatedDescription] = await Promise.all([
-                    translationService.translate(achievementObj.title, language),
-                    translationService.translate(achievementObj.description, language)
-                ]);
+                // Only translate if language is not English
+                if (language !== 'en') {
+                    const [translatedTitle, translatedDescription] = await Promise.all([
+                        translationService.translate(achievementObj.title, language),
+                        translationService.translate(achievementObj.description, language)
+                    ]);
+                    achievementObj.title = translatedTitle;
+                    achievementObj.description = translatedDescription;
+                }
 
                 return {
                     ...achievementObj,
-                    title: translatedTitle,
-                    description: translatedDescription,
                     currentProgress: recentAchievement.currentProgress,
                     isCompleted: recentAchievement.isCompleted,
                     completedAt: recentAchievement.completedAt

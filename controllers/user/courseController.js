@@ -34,6 +34,90 @@ exports.createCourse = async (req, res) => {
   }
 };
 
+// Add new lesson to a module
+exports.addLessonToModule = async (req, res) => {
+  try {
+    const { courseId, moduleId } = req.params;
+    const { id, title, type, duration, content, questions } = req.body;
+
+    // Validate required fields
+    if (!id || !title || !type || !duration) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Please provide all required fields: id, title, type, duration'
+      });
+    }
+
+    // Validate lesson type
+    const validTypes = ['writing', 'reading', 'vocabulary', 'grammar', 'listening', 'practice'];
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({
+        status: 'error',
+        message: `Invalid lesson type. Must be one of: ${validTypes.join(', ')}`
+      });
+    }
+
+    // Find the course and module
+    const course = await Course.findById(courseId);
+    if (!course) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Course not found'
+      });
+    }
+
+    const module = course.modules.id(moduleId);
+    if (!module) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Module not found'
+      });
+    }
+
+    // Create new lesson object
+    const newLesson = {
+      id,
+      title,
+      type,
+      duration,
+      completed: false
+    };
+
+    // Add questions if provided
+    if (questions && Array.isArray(questions)) {
+      newLesson.questions = questions;
+    }
+
+    // Add lesson to module
+    module.lessons.push(newLesson);
+
+    // Update module progress
+    module.progress = (module.lessons.filter(lesson => lesson.completed).length / module.lessons.length) * 100;
+
+    // Update course total progress
+    const totalLessons = course.modules.reduce((sum, mod) => sum + mod.lessons.length, 0);
+    const completedLessons = course.modules.reduce((sum, mod) => sum + mod.lessons.filter(lesson => lesson.completed).length, 0);
+    course.totalProgress = (completedLessons / totalLessons) * 100;
+
+    // Save the updated course
+    await course.save();
+
+    res.status(201).json({
+      status: 'success',
+      data: {
+        lesson: newLesson,
+        moduleProgress: module.progress,
+        totalProgress: course.totalProgress
+      }
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: 'error',
+      message: err.message
+    });
+  }
+};
+
 // Get all courses
 exports.getAllCourses = async (req, res) => {
   try {
@@ -55,17 +139,17 @@ exports.getCoursesByLevel = async (req, res) => {
   try {
     const { level } = req.params;
     const { language } = req.query;
-    
+
     const courses = await Course.find({ level });
 
-    // If language is specified, translate course data
+    // If language is not specified or is English, return courses as is
     let coursesToReturn = courses;
-    if (language) {
+    if (language && language !== 'en') {
       coursesToReturn = await Promise.all(
         courses.map(async (course) => {
           const courseData = course.toObject();
           const translatedCourse = await translationService.translateCourseData(courseData, language);
-          
+
           // Also translate module titles and descriptions
           if (translatedCourse.modules) {
             translatedCourse.modules = await Promise.all(
@@ -82,10 +166,12 @@ exports.getCoursesByLevel = async (req, res) => {
               }))
             );
           }
-          
+
           return translatedCourse;
         })
       );
+    } else {
+      coursesToReturn = courses.map(course => course.toObject());
     }
 
     res.status(200).json({
@@ -106,17 +192,17 @@ exports.getFeaturedCourses = async (req, res) => {
     const courses = await Course.find()
       .select('title description level modules')
       .limit(3);
-    
-    // Get target language from query params, default to 'hi' (Hindi)
-    const targetLang = req.query.language;
-    
-    // Only translate if a language is specified
+
+    const language = req.query.language || 'en';
+
+    // Only translate if language is not English
     let coursesToReturn = courses;
-    if (targetLang) {
-      // Translate course data if language is specified
+    if (language !== 'en') {
       coursesToReturn = await Promise.all(
-        courses.map(course => translationService.translateCourseData(course.toObject(), targetLang))
+        courses.map(course => translationService.translateCourseData(course.toObject(), language))
       );
+    } else {
+      coursesToReturn = courses.map(course => course.toObject());
     }
 
     res.status(200).json({
@@ -347,7 +433,7 @@ const updateAchievementsForLesson = async (user, course, module, lessonId) => {
   }, 0);
 
   // Find the user's achievement progress
-  const userAchievement = user.allAchievements.find(a => 
+  const userAchievement = user.allAchievements.find(a =>
     a.achievementId === achievement.id && !a.isCompleted
   );
 
@@ -430,7 +516,7 @@ exports.updateLessonStatus = async (req, res) => {
 
           if (achievement) {
             // Find the user's achievement progress
-            const userAchievement = user.allAchievements.find(a => 
+            const userAchievement = user.allAchievements.find(a =>
               a.achievementId === achievement.id && !a.isCompleted
             );
 
@@ -712,7 +798,7 @@ exports.getLessonContent = async (req, res) => {
   try {
     const { courseId, moduleId, lessonId } = req.params;
     const userId = req.user.userId;
-    const { language = 'hi' } = req.query;
+    const language = req.query.language || 'en';
 
     // Find the course
     const course = await Course.findById(courseId);
@@ -761,13 +847,15 @@ exports.getLessonContent = async (req, res) => {
       duration: lesson.duration
     };
 
-    // Translate the content if language is specified
-    const translatedContent = await translationService.translateLessonContent(lessonContent, language);
+    // Only translate if language is not English
+    const finalContent = language !== 'en'
+      ? await translationService.translateLessonContent(lessonContent, language)
+      : lessonContent;
 
     res.status(200).json({
       status: 'success',
       data: {
-        lesson: translatedContent
+        lesson: finalContent
       }
     });
   } catch (err) {

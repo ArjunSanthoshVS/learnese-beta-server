@@ -10,7 +10,7 @@ exports.getAllForumPosts = async (req, res) => {
         const limit = parseInt(req.query.limit) || 10;
         const search = req.query.search || '';
         const category = req.query.category || '';
-        const language = req.query.language || 'hi';
+        const language = req.query.language || 'en';
         const status = 'active';
 
         const query = {
@@ -47,7 +47,7 @@ exports.getAllForumPosts = async (req, res) => {
             postObj.hasLiked = postObj.likes.includes(currentUserId);
             postObj.comments = post.comments || [];
 
-            // Translate title, description, and category
+            // Only translate if language is not English
             if (language !== 'en') {
                 postObj.title = await translationService.translate(postObj.title, language);
                 postObj.description = await translationService.translate(postObj.description, language);
@@ -111,7 +111,7 @@ exports.createForumPost = async (req, res) => {
 
 exports.getForumPostById = async (req, res) => {
     try {
-        const { language = 'hi' } = req.query; // Default to Hindi if no language specified
+        const { language = 'en' } = req.query;
         
         const post = await ForumPost.findById(req.params.id)
             .populate('author', 'name email')
@@ -134,8 +134,8 @@ exports.getForumPostById = async (req, res) => {
         // Convert the post to a plain object to modify it
         const postObject = post.toObject();
 
-        // Translate title and description if language is not English
-        if (language && language !== 'en') {
+        // Only translate if language is not English
+        if (language !== 'en') {
             try {
                 const [translatedTitle, translatedDescription] = await Promise.all([
                     translationService.translate(postObject.title, language),
@@ -479,7 +479,7 @@ exports.toggleCommentLike = async (req, res) => {
 // Get all study groups
 exports.getAllStudyGroups = async (req, res) => {
     try {
-        const { search, category, language = 'hi' } = req.query;
+        const { search, category, language = 'en' } = req.query;
         const query = { isActive: true };
 
         if (category) query.category = category;
@@ -499,7 +499,7 @@ exports.getAllStudyGroups = async (req, res) => {
             const groupObj = group.toObject();
             groupObj.memberCount = group.members.length;
 
-            // Translate fields if language is not English
+            // Only translate if language is not English
             if (language !== 'en') {
                 groupObj.name = await translationService.translate(groupObj.name, language);
                 groupObj.description = await translationService.translate(groupObj.description, language);
@@ -599,7 +599,7 @@ exports.leaveStudyGroup = async (req, res) => {
 // Get user's study groups
 exports.getMyStudyGroups = async (req, res) => {
     try {
-        const language = req.query.language || 'hi';
+        const language = req.query.language || 'en';
         
         const studyGroups = await StudyGroup.find({
             members: req.user.userId,
@@ -613,7 +613,7 @@ exports.getMyStudyGroups = async (req, res) => {
             const groupObj = group.toObject();
             groupObj.memberCount = group.members.length;
 
-            // Translate fields if language is not English
+            // Only translate if language is not English
             if (language !== 'en') {
                 groupObj.name = await translationService.translate(groupObj.name, language);
                 groupObj.description = await translationService.translate(groupObj.description, language);

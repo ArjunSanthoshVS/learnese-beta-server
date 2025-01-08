@@ -41,13 +41,24 @@ const generateGoalsWithAI = async (userData) => {
 };
 
 // Helper function to translate goals
-const translateGoals = async (goals, language) => {
-    if (!goals || !Array.isArray(goals)) return goals;
-    if (language === 'en') return goals;
+const translateGoals = async (goals, language = 'en') => {
+    if (!goals || !Array.isArray(goals) || language === 'en') {
+        return goals.map(goal => {
+            const plainGoal = goal.toObject ? goal.toObject() : goal;
+            return {
+                _id: plainGoal._id,
+                text: plainGoal.text,
+                type: plainGoal.type,
+                completed: plainGoal.completed,
+                deadline: plainGoal.deadline,
+                generatedAt: plainGoal.generatedAt,
+                updatedAt: plainGoal.updatedAt
+            };
+        });
+    }
 
     try {
         const translatedGoals = await Promise.all(goals.map(async goal => {
-            // Convert Mongoose document to plain object if needed
             const plainGoal = goal.toObject ? goal.toObject() : goal;
             
             return {
@@ -76,7 +87,7 @@ const translateGoals = async (goals, language) => {
 // Generate new daily goals
 exports.generateDailyGoals = async (req, res) => {
     try {
-        const { language  } = req.query;
+        const language = req.query.language || 'en';
         const user = await User.findById(req.user.userId).populate('courses.course');
         
         // Check if goals were already generated today
@@ -100,12 +111,12 @@ exports.generateDailyGoals = async (req, res) => {
         user.lastGoalsGenerated = new Date();
         await user.save();
 
-        // Translate goals if needed
-        const translatedGoals = await translateGoals(goals, language);
+        // Process goals (translate if needed or convert to plain objects)
+        const processedGoals = await translateGoals(goals, language);
 
         res.status(200).json({
             status: 'success',
-            data: { goals: translatedGoals }
+            data: { goals: processedGoals }
         });
     } catch (err) {
         console.error('Error generating daily goals:', err);
@@ -119,7 +130,7 @@ exports.generateDailyGoals = async (req, res) => {
 // Get current daily goals
 exports.getDailyGoals = async (req, res) => {
     try {
-        const { language  } = req.query;
+        const language = req.query.language || 'en';
         const user = await User.findById(req.user.userId).select('dailyGoals lastGoalsGenerated');
         
         // Check if goals need to be regenerated
@@ -136,12 +147,12 @@ exports.getDailyGoals = async (req, res) => {
             await user.save();
         }
 
-        // Translate goals if needed
-        const translatedGoals = await translateGoals(user.dailyGoals, language);
+        // Process goals (translate if needed or convert to plain objects)
+        const processedGoals = await translateGoals(user.dailyGoals, language);
 
         res.status(200).json({
             status: 'success',
-            data: { goals: translatedGoals }
+            data: { goals: processedGoals }
         });
     } catch (err) {
         res.status(500).json({
@@ -156,7 +167,7 @@ exports.updateGoalStatus = async (req, res) => {
     try {
         const { goalId } = req.params;
         const { completed } = req.body;
-        const { language  } = req.query;
+        const language = req.query.language || 'en';
 
         // Find the user and the specific goal in one query
         const user = await User.findOne({
@@ -214,14 +225,14 @@ exports.updateGoalStatus = async (req, res) => {
             });
         }
 
-        // Get the updated goal and translate it
+        // Get the updated goal and process it
         const updatedGoal = updatedUser.dailyGoals.find(g => g._id.toString() === goalId);
-        const translatedGoal = await translateGoals([updatedGoal], language);
+        const processedGoal = await translateGoals([updatedGoal], language);
 
         res.status(200).json({
             status: 'success',
             data: { 
-                goal: translatedGoal[0],
+                goal: processedGoal[0],
                 streak: updatedUser.streak,
                 longestStreak: updatedUser.longestStreak
             }

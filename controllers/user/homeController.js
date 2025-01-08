@@ -4,22 +4,21 @@ const translationService = require('../../utils/translationService');
 
 exports.getProfile = async (req, res) => {
   try {
-    const { language  } = req.query;
+    const language = req.query.language || 'en';
     const user = await User.findById(req.user.userId).select('-password');
     
-    // Add translation for user profile data if needed
-    const translatedUser = language !== 'en' ? {
-      ...user.toObject(),
-      studyLevel: await translationService.translate(user.studyLevel, language),
-      preferences: user.preferences ? {
-        ...user.preferences,
-        preferredLanguage: await translationService.translate(user.preferences.preferredLanguage, language)
-      } : null
-    } : user;
+    // Convert to plain object and add translations if needed
+    const userData = user.toObject();
+    if (language !== 'en') {
+      userData.studyLevel = await translationService.translate(userData.studyLevel, language);
+      if (userData.preferences) {
+        userData.preferences.preferredLanguage = await translationService.translate(userData.preferences.preferredLanguage, language);
+      }
+    }
 
     res.status(200).json({
       status: 'success',
-      data: { user: translatedUser }
+      data: { user: userData }
     });
   } catch (err) {
     res.status(400).json({
@@ -31,7 +30,7 @@ exports.getProfile = async (req, res) => {
 
 exports.getUserCourses = async (req, res) => {
   try {
-    const { language  } = req.query;
+    const language = req.query.language || 'en';
 
     const user = await User.findById(req.user.userId)
       .populate({
@@ -118,7 +117,7 @@ exports.getUserCourses = async (req, res) => {
         }
       }
 
-      const result = {
+      return {
         courseId: course._id,
         title: course.title,
         level: course.level,
@@ -135,14 +134,12 @@ exports.getUserCourses = async (req, res) => {
           })),
         isAllComplete: allUnlockedModulesCompleted
       };
-
-      return result;
     });
 
-    // Translate courses if language is not English
-    let translatedCourses = formattedCourses;
+    // Only translate if language is not English
+    let coursesToReturn = formattedCourses;
     if (language !== 'en') {
-      translatedCourses = await Promise.all(
+      coursesToReturn = await Promise.all(
         formattedCourses.map(course => 
           translationService.translateCourseData(course, language)
         )
@@ -151,7 +148,7 @@ exports.getUserCourses = async (req, res) => {
 
     res.status(200).json({
       status: 'success',
-      data: { courses: translatedCourses }
+      data: { courses: coursesToReturn }
     });
   } catch (err) {
     console.error('Error in getUserCourses:', err);
@@ -166,7 +163,7 @@ exports.updateCourseProgress = async (req, res) => {
   try {
     const { courseId } = req.params;
     const { progress } = req.body;
-    const { language  } = req.query;
+    const language = req.query.language || 'en';
 
     const user = await User.findOneAndUpdate(
       { 
@@ -211,7 +208,7 @@ exports.getStreak = async (req, res) => {
 
 exports.getUpcomingEvents = async (req, res) => {
   try {
-    const { language  } = req.query;
+    const language = req.query.language || 'en';
 
     // This would typically fetch from an Events collection
     // For now, returning mock data
@@ -228,15 +225,15 @@ exports.getUpcomingEvents = async (req, res) => {
       }
     ];
 
-    // Translate events if language is not English
-    let translatedEvents = events;
+    // Only translate if language is not English
+    let eventsToReturn = events;
     if (language !== 'en') {
-      translatedEvents = await translationService.translateEvents(events, language);
+      eventsToReturn = await translationService.translateEvents(events, language);
     }
 
     res.status(200).json({
       status: 'success',
-      data: { events: translatedEvents }
+      data: { events: eventsToReturn }
     });
   } catch (err) {
     res.status(400).json({
