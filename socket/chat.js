@@ -13,7 +13,7 @@ module.exports = {
     init: (server) => {
         io = socketIO(server, {
             cors: {
-                origin: ["http://localhost:5173", "https://japanese-lms-features-test.netlify.app"],
+                origin: ["http://localhost:5173", "https://japanese-lms-features-test.netlify.app", "https://learnese-beta.netlify.app"],
                 methods: ["GET", "POST"]
             }
         });
